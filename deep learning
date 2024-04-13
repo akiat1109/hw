@@ -1,0 +1,43 @@
+from google.colab import drive
+drive.mount('/content/drive')
+
+!unzip -uq "/content/drive/MyDrive/HW2_dataset.zip" -d "/content/sample_data/"
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.data import Dataset,DataLoader
+from torch.utils.data import random_split
+from torchvision import models
+# 其他
+from PIL import Image
+import matplotlib.pyplot as plt
+import numpy as np
+import csv
+import cv2
+from copy import copy
+import os
+
+# check GPU
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+print('GPU state:', device)
+
+lr = 0.0001 #learning rate
+batch_size = 49
+epochs = 7 #next try 49
+model_path = '/content/sample_data/model.pth'
+train_path = '/content/sample_data/HW2_dataset/training'
+test_path = '/content/sample_data/HW2_dataset/testing'
+
+train_transform = torchvision.transforms.Compose([
+    torchvision.transforms.ToTensor(),
+    torchvision.transforms.Resize([100,100]),#next try 64x64
+])
+
+test_transform = torchvision.transforms.Compose([
+    torchvision.transforms.ToTensor(),
+    torchvision.transforms.Resize([100,100]),
+])
