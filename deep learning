@@ -1,8 +1,11 @@
+————————————————————————————————————————————————————————————————————————————————————
+#從google drive 解壓縮文件夾
 from google.colab import drive
 drive.mount('/content/drive')
 
 !unzip -uq "/content/drive/MyDrive/HW2_dataset.zip" -d "/content/sample_data/"
-
+—————————————————————————————————————————————————————————————————————————————————————
+#import 模組
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -20,18 +23,20 @@ import csv
 import cv2
 from copy import copy
 import os
-
+————————————————————————————————————————————————————————————————————————————————————————
 # check GPU
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 print('GPU state:', device)
-
+————————————————————————————————————————————————————————————————————————————————————————
+#參數的設定
 lr = 0.0001 #learning rate
 batch_size = 49
 epochs = 7 #next try 49
 model_path = '/content/sample_data/model.pth'
 train_path = '/content/sample_data/HW2_dataset/training'
 test_path = '/content/sample_data/HW2_dataset/testing'
-
+————————————————————————————————————————————————————————————————————————————————————————
+#數據pre-transform
 train_transform = torchvision.transforms.Compose([
     torchvision.transforms.ToTensor(),
     torchvision.transforms.Resize([100,100]),#next try 64x64
@@ -41,7 +46,8 @@ test_transform = torchvision.transforms.Compose([
     torchvision.transforms.ToTensor(),
     torchvision.transforms.Resize([100,100]),
 ])
-
+——————————————————————————————————————————————————————————————————————————————————————————
+#助教sample code裡面處理dataset的部分
 class HW2_dataset(Dataset):
   def __init__(self, root_dir, transform=None):
     self.root_dir = root_dir
@@ -74,24 +80,25 @@ class HW2_dataset(Dataset):
     if self.transform:
         img = self.transform(img)
     return img, label
-
+——————————————————————————————————————————————————————————————————————————————————————————————
 full_dataset = HW2_dataset(train_path,train_transform)
 #validation_dataset = HW2_dataset(train_path,train_transform)
 test_dataset = HW2_dataset(train_path,test_transform)
-
+——————————————————————————————————————————————————————————————————————————————————————————————
 train_size = int(0.8*len(full_dataset))
 validation_size = len(full_dataset) - train_size
 train_dataset, validation_dataset = random_split(full_dataset,[train_size,validation_size])
-
+————————————————————————————————————————————————————————————————————————————————————————————————
 classes = full_dataset.get_classes()
 print(classes)
-
+————————————————————————————————————————————————————————————————————————————————————————————————
 print(len(classes))
-
+—————————————————————————————————————————————————————————————————————————————————————————————————
 train_loader = DataLoader(dataset=train_dataset,batch_size=batch_size,shuffle=True,num_workers=2)
 validation_loader = DataLoader(dataset=validation_dataset,batch_size=batch_size,shuffle=True,num_workers=2)
 #test_loader = DataLoader(dataset=test_dataset,batch_size=batch_size,shuffle=True,num_workers=2)
-
+——————————————————————————————————————————————————————————————————————————————————————————————————
+#这个是看train里面的图片和作者
 data_iterator = iter(train_loader)
 
 inputs, labels = next(data_iterator)
@@ -108,7 +115,8 @@ for i in range(49):
 plt.suptitle(f'Training Data', y=0.93)
 
 plt.show()
-
+————————————————————————————————————————————————————————————————————————————————————————————————————
+#看validation的图片和作者
 data_iterator = iter(validation_loader)
 
 inputs, labels = next(data_iterator)
@@ -126,7 +134,7 @@ for i in range(32):
 plt.suptitle(f'Training Data', y=0.93)
 
 plt.show()
-
+——————————————————————————————————————————————————————————————————————————————————————————————————————
 model = models.vgg16(weights='DEFAULT')
 print(model)
 
@@ -136,7 +144,8 @@ model.to(device)
 
 loss = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr, momentum=0.9)
-
+———————————————————————————————————————————————————————————————————————————————————————————————————————
+##这边是model的training
 # best model accurancy
 best_acc = 0.0
 train_loss = []
@@ -231,7 +240,8 @@ for epoch in range(epochs):
     best_model = copy(model.state_dict())
     model_trained = model.load_state_dict(best_model)
 print('Finished Training')
-
+————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+#用图标显示train的loss
 plt.title("Loss")
 plt.xlabel('Epoch')
 plt.ylabel('Loss')
@@ -239,7 +249,8 @@ plt.plot(list(i+1 for i in range(epochs)),train_loss, 'b')
 plt.plot(list(i+1 for i in range(epochs)),test_loss, 'r')
 plt.legend(['train','test'])
 plt.show()
-
+————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+#用图表显示accuracy的loss
 plt.title("Accurancy")
 plt.xlabel('Epoch')
 plt.ylabel('Loss')
