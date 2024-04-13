@@ -41,3 +41,209 @@ test_transform = torchvision.transforms.Compose([
     torchvision.transforms.ToTensor(),
     torchvision.transforms.Resize([100,100]),
 ])
+
+class HW2_dataset(Dataset):
+  def __init__(self, root_dir, transform=None):
+    self.root_dir = root_dir
+    self.transform = transform
+    self.classes = os.listdir(root_dir)
+    self.class_to_idx = {cls_name: i for i, cls_name in enumerate(self.classes)}
+    self.images = self.load_images()
+
+  def get_classes(self):
+    return self.classes
+
+  def load_images(self): #要改的地方
+    images = []
+    for cls_name in self.classes:
+        cls_dir = os.path.join(self.root_dir, cls_name)
+        for img_name in os.listdir(cls_dir):
+            img_path = os.path.join(cls_dir, img_name)
+            images.append((img_path, self.class_to_idx[cls_name]))
+        #for img_name in self.classes:
+            #img_path = os.path.join(cls_dir, img_name)
+            #images.append((img_path, self.class_to_idx[cls_name]))
+    return images
+
+  def __len__(self):
+    return len(self.images)
+
+  def __getitem__(self, idx):
+    img_path, label = self.images[idx]
+    img = Image.open(img_path).convert('RGB')
+    if self.transform:
+        img = self.transform(img)
+    return img, label
+
+full_dataset = HW2_dataset(train_path,train_transform)
+#validation_dataset = HW2_dataset(train_path,train_transform)
+test_dataset = HW2_dataset(train_path,test_transform)
+
+train_size = int(0.8*len(full_dataset))
+validation_size = len(full_dataset) - train_size
+train_dataset, validation_dataset = random_split(full_dataset,[train_size,validation_size])
+
+classes = full_dataset.get_classes()
+print(classes)
+
+print(len(classes))
+
+train_loader = DataLoader(dataset=train_dataset,batch_size=batch_size,shuffle=True,num_workers=2)
+validation_loader = DataLoader(dataset=validation_dataset,batch_size=batch_size,shuffle=True,num_workers=2)
+#test_loader = DataLoader(dataset=test_dataset,batch_size=batch_size,shuffle=True,num_workers=2)
+
+data_iterator = iter(train_loader)
+
+inputs, labels = next(data_iterator)
+
+plt.figure(figsize=(20, 20))
+for i in range(49):
+    ax = plt.subplot(7, 7, i + 1)
+    img = inputs[i]
+    #  (channels, height, width) in PyTorch => (height, width, channels)
+    plt.imshow(np.transpose(img, (1, 2, 0)))
+    title = classes[labels[i]]
+    plt.title(title)
+    plt.axis('off')
+plt.suptitle(f'Training Data', y=0.93)
+
+plt.show()
+
+data_iterator = iter(validation_loader)
+
+inputs, labels = next(data_iterator)
+
+plt.figure(figsize=(20, 20))
+for i in range(32):
+    ax = plt.subplot(7, 7, i + 1)
+    img = inputs[i]
+    #  (channels, height, width) in PyTorch => (height, width, channels)
+    plt.imshow(np.transpose(img, (1, 2, 0)))
+    title = classes[labels[i]]
+    plt.title(title)
+
+    plt.axis('off')
+plt.suptitle(f'Training Data', y=0.93)
+
+plt.show()
+
+model = models.vgg16(weights='DEFAULT')
+print(model)
+
+num_fcin = model.classifier[6].in_features
+model.classifier[6] = nn.Linear(num_fcin, len(classes))
+model.to(device)
+
+loss = nn.CrossEntropyLoss()
+optimizer = optim.SGD(model.parameters(), lr, momentum=0.9)
+
+# best model accurancy
+best_acc = 0.0
+train_loss = []
+train_acc = []
+test_loss = []
+test_acc = []
+
+for epoch in range(epochs):
+
+  train_epoch_loss = 0.0
+
+  train_class_correct = list(0. for i in range(len(classes)))
+  train_class_total = list(0. for i in range(len(classes)))
+
+  for i, data in enumerate(train_loader, 0):
+
+    inputs, labels = data
+    inputs, labels = inputs.to(device), labels.to(device)
+
+    optimizer.zero_grad()
+    outputs = model(inputs)
+
+    # Compute Loss & Update Weight
+    batch_loss = loss(outputs, labels)
+    batch_loss.backward()
+    optimizer.step()
+
+    train_epoch_loss += batch_loss.item()
+
+    # Compute train_class_correct of each batch
+    _, predicted = torch.max(outputs, 1)
+    batch_correct = (predicted == labels)
+    for j in range(len(labels)):
+      label = labels[j]
+      train_class_correct[label] += batch_correct[j].item()
+      train_class_total[label] += 1
+
+  # Compute Loss & Acc
+  train_epoch_loss = train_epoch_loss / len(train_loader)
+  train_epoch_accurncy = sum(train_class_correct) / sum(train_class_total) * 100
+
+  train_loss.append(train_epoch_loss)
+  train_acc.append(train_epoch_accurncy)
+
+  print('[Epoch:%2d]' % (epoch + 1))
+  print('Train Accuracy of All : %.3f %%' % (train_epoch_accurncy))
+  print('Train Loss of All : %.3f ' % (train_epoch_loss))
+  print("----------------------------------------")
+
+  # Validation class correct & class total
+  val_loss = 0.0
+  val_class_correct = list(0. for i in range(len(classes)))
+  val_class_total = list(0. for i in range(len(classes)))
+
+  # Validation every epoch
+  with torch.no_grad():
+    for data in validation_loader:
+      images, labels = data
+      images, labels = images.to(device), labels.to(device)
+      outputs = model(images)
+
+      # 1. Compute val_batch_loss
+      batch_loss = loss(outputs, labels)
+      val_loss += batch_loss.item()
+
+      # 2. Compute val_class_correct of each batch
+      _, predicted = torch.max(outputs, 1)
+      batch_correct = (predicted == labels)
+      for j in range(len(labels)):
+        label = labels[j]
+        val_class_correct[label] += batch_correct[j].item()
+        val_class_total[label] += 1
+  # print each class accurancy of Validation
+  for i in range(len(classes)):
+    label = classes[i]
+    print('Accuracy of %5s : %2d %%' % (label, 100 * val_class_correct[i] / val_class_total[i]))
+  # Compute Loss & Acc of Validation
+  val_accurncy = sum(val_class_correct) / sum(val_class_total) * 100
+  val_loss = val_loss / len(validation_loader)
+
+  test_loss.append(val_loss)
+  test_acc.append(val_accurncy)
+
+  print('Validation Accuracy of All : %.3f %%' % (val_accurncy))
+  print('Validation Loss of All : %.3f ' % (val_loss))
+  print("----------------------------------------")
+
+  # Save best model
+  if val_accurncy > best_acc:
+    best_acc = val_accurncy
+    torch.save(model.state_dict(), model_path)
+    best_model = copy(model.state_dict())
+    model_trained = model.load_state_dict(best_model)
+print('Finished Training')
+
+plt.title("Loss")
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.plot(list(i+1 for i in range(epochs)),train_loss, 'b')
+plt.plot(list(i+1 for i in range(epochs)),test_loss, 'r')
+plt.legend(['train','test'])
+plt.show()
+
+plt.title("Accurancy")
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.plot(list(i+1 for i in range(epochs)),train_acc, 'b')
+plt.plot(list(i+1 for i in range(epochs)),test_acc, 'r')
+plt.legend(['train','test'])
+plt.show()
